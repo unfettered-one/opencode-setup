@@ -249,6 +249,16 @@ Steps:
 3. Set `"phase"` to `"developer"`.
 4. Write the **full updated JSON** back to `.ai/status.json`.
 
+IMPORTANT RULES:
+
+- Tester MUST NOT modify the `completed` flag.
+- Tester MUST NOT change phase to `"completed"`.
+- Workflow completion is handled **ONLY by the Reviewer phase**.
+
+Terminal output does NOT complete the phase.
+
+The status file MUST be written using `write` or `edit` tool.
+
 This returns the workflow to the Developer phase for fixes.
 
 ---

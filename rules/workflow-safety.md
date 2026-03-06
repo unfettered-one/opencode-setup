@@ -101,7 +101,19 @@ Rules:
 - Only append new phase information
 - Only update `status.json` during lifecycle commit
 
----
+Valid workflow phases are:
+
+- `architect`
+- `developer`
+- `tester`
+- `reviewer`
+- `devops`
+
+The value `"completed"` is **NOT a phase**.
+
+## Workflow completion is controlled using the boolean flag:
+
+completed: true
 
 ## Tool Discipline
 
@@ -117,3 +129,47 @@ Correct tools:
 - grep
 
 Avoid using bash for tasks already supported by tools.
+
+## Workflow Completion Authority
+
+Only the **Reviewer phase** may mark the workflow as completed.
+
+Rules:
+
+1. `completed: true` may ONLY be written by the Reviewer phase.
+2. The `phase` field MUST remain `"reviewer"` when `completed` is set to true.
+3. The `"completed"` value is a **boolean flag**, not a phase.
+
+orrect example:
+
+{
+"task_id": "TASK-001",
+"phase": "reviewer",
+"completed": true,
+"history": [
+"architect",
+"developer",
+"tester",
+"reviewer"
+]
+}
+
+Incorrect examples:
+
+Tester marking workflow complete:
+
+{
+"phase": "completed",
+"completed": true
+}
+
+Developer marking workflow complete:
+
+{
+"phase": "developer",
+"completed": true
+}
+
+Changing phase to `"completed"` is **not allowed**.
+
+Any attempt to mark completion outside the Reviewer phase is a **workflow violation**.
