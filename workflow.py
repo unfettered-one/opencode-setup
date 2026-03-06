@@ -3,6 +3,7 @@ import json
 import time
 import sys
 import socket
+import signal
 from pathlib import Path
 from typing import Dict, Any
 
@@ -73,6 +74,40 @@ OPENCODE_PATH = r"C:\Users\z004xm0r\AppData\Roaming\npm\opencode.CMD"
 
 INDEX_FILE = Path(".srclight") / "index.db"
 
+# Track subprocesses
+SRCLIGHT_PROCESS = None
+
+# =====================================================
+# CLEANUP
+# =====================================================
+
+
+def cleanup():
+    """
+    Ensure all subprocesses are terminated safely.
+    """
+    global SRCLIGHT_PROCESS
+
+    print("\nCleaning up subprocesses...")
+
+    if SRCLIGHT_PROCESS is not None:
+        try:
+            SRCLIGHT_PROCESS.terminate()
+            SRCLIGHT_PROCESS.wait(timeout=5)
+            print("Srclight server stopped.")
+        except Exception:
+            try:
+                SRCLIGHT_PROCESS.kill()
+                print("Srclight server force killed.")
+            except Exception:
+                pass
+
+
+def handle_exit(signum, frame):
+    print(f"\nReceived signal {signum}. Shutting down.")
+    cleanup()
+    sys.exit(0)
+
 
 # =====================================================
 # BOOTSTRAP
@@ -128,13 +163,15 @@ def ensure_srclight_server():
     Ensure Srclight MCP server is running.
     """
 
+    global SRCLIGHT_PROCESS
+
     if is_port_open(SRCLIGHT_PORT):
         print("Srclight MCP server already running.")
         return
 
     print("Starting Srclight MCP server...")
 
-    subprocess.Popen(
+    SRCLIGHT_PROCESS = subprocess.Popen(
         ["srclight", "serve"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
@@ -275,37 +312,45 @@ def validate_transition(old_status: Dict[str, Any], new_status: Dict[str, Any]):
 def main():
     print("=== AI WORKFLOW ENGINE STARTED ===")
 
-    ensure_ai_structure()
-    prompt_for_task_if_empty()
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
 
-    ensure_code_index()
-    ensure_srclight_server()
+    try:
+        ensure_ai_structure()
+        prompt_for_task_if_empty()
 
-    iterations = 0
+        ensure_code_index()
+        ensure_srclight_server()
 
-    while iterations < MAX_ITERATIONS:
-        old_status = read_status()
+        iterations = 0
 
-        if old_status.get("completed"):
-            print("\nWorkflow completed successfully.")
-            return
+        while iterations < MAX_ITERATIONS:
 
-        phase = old_status["phase"]
+            old_status = read_status()
 
-        if phase not in ALLOWED_PHASES:
-            raise RuntimeError(f"Unknown phase: {phase}")
+            if old_status.get("completed"):
+                print("\nWorkflow completed successfully.")
+                return
 
-        run_phase(phase)
+            phase = old_status["phase"]
 
-        time.sleep(1)
+            if phase not in ALLOWED_PHASES:
+                raise RuntimeError(f"Unknown phase: {phase}")
 
-        new_status = read_status()
-        validate_transition(old_status, new_status)
+            run_phase(phase)
 
-        iterations += 1
+            time.sleep(1)
 
-    raise RuntimeError(
-        "Max iterations reached. Possible infinite loop detected.")
+            new_status = read_status()
+            validate_transition(old_status, new_status)
+
+            iterations += 1
+
+        raise RuntimeError(
+            "Max iterations reached. Possible infinite loop detected.")
+
+    finally:
+        cleanup()
 
 
 if __name__ == "__main__":
