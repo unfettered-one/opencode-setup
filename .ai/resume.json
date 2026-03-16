@@ -1,0 +1,16 @@
+{
+    "active_phase": "",
+    "active_plan_item": "",
+    "retry_counts": {},
+    "last_checkpoint": "",
+    "delegated_runs": [],
+    "stop_reason": "",
+    "phase_mode": "fresh",
+    "last_result_summary": "",
+    "conductor_decision": {
+        "verdict": "PROCEED",
+        "target_phase": "",
+        "reason": "Initial state \u2014 no conductor run yet.",
+        "decided_at": ""
+    }
+}
