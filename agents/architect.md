@@ -19,6 +19,7 @@ webfetch: true
 websearch: true
 question: true
 sequentialthinking: true
+time: true
 srclight: true
 filesystem: true
 permission:
@@ -75,19 +76,19 @@ Give `@librarian` these research objectives:
 
 For `investigate` or `debug` tasks you may spawn additional `@librarian` lookups for specific symbols or call graphs.
 
-**Delegation visibility**: Before delegating to `@librarian`, call the `time` MCP (`get_current_time`) for a real UTC timestamp, then emit to stdout and append to `.ai/activity.log` (the runner guarantees the file exists):
+**Delegation visibility**: Architect owns the canonical telemetry for librarian work. Before delegating to `@librarian`, call the `time` MCP (`get_current_time`) for a real UTC timestamp, then emit to stdout and append to `.ai/activity.log` (the runner guarantees the file exists):
 
 ```
 [<UTC from time MCP>] DELEGATION_START task=architect agent=librarian purpose="<research objective>"
 ```
 
-After the librarian returns, call `time` MCP again and emit:
+After the librarian returns, derive the summary from the returned research report, call `time` MCP again, and emit:
 
 ```
 [<UTC from time MCP>] DELEGATION_DONE task=architect agent=librarian summary="<one-line summary of findings>"
 ```
 
-If either append fails, write to `.ai/issues.md` instead with class `auto-fixable`. Never silently drop a delegation event.
+If either append fails, write to `.ai/issues.md` instead with class `auto-fixable`. Never silently drop a delegation event. `@librarian` does not own activity-log writes.
 
 ---
 

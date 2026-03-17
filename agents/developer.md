@@ -21,6 +21,7 @@ tools:
   question: true
   task: true
   sequentialthinking: true
+  time: true
   srclight: true
 permission:
   skill:
@@ -117,7 +118,7 @@ When delegating to `@pretester`, use the same `RETRY_COUNT` field semantics but 
 
 # 3.5. DELEGATION VISIBILITY PROTOCOL (MANDATORY)
 
-Before and after every `@coder` or `@pretester` delegation, emit structured markers to stdout **and** append the same line to `.ai/activity.log`. The runner guarantees this file exists before any phase starts — you do not need to create it.
+Before and after every `@coder` or `@pretester` delegation, emit structured markers to stdout **and** append the same line to `.ai/activity.log`. The runner guarantees this file exists before any phase starts — you do not need to create it. The Developer owns these canonical telemetry lines; child agents return structured results but do not own `.ai/activity.log` writes.
 
 **Timestamps**: Always call the `time` MCP (`get_current_time`) to obtain a real UTC timestamp before writing each log line. Never write a timestamp from memory or guess one.
 
@@ -142,13 +143,13 @@ Before delegating:
 [<UTC>] DELEGATION_START task=<T-xxx> agent=<coder|pretester> purpose="<one-line description>"
 ```
 
-After a DONE response:
+After a DONE response, emit the terminal event only after reading the child report and confirming which task completed:
 
 ```
 [<UTC>] DELEGATION_DONE task=<T-xxx> agent=<coder|pretester> summary="<one-line result summary>"
 ```
 
-After a BLOCKED response:
+After a BLOCKED response, emit the terminal event only after reading the child report and extracting the blocker reason:
 
 ```
 [<UTC>] DELEGATION_BLOCKED task=<T-xxx> agent=<coder|pretester> reason="<blocker description>"

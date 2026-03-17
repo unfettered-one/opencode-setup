@@ -6,6 +6,7 @@ tools:
 read: true
 grep: true
 glob: true
+sequentialthinking: true
 srclight: true
 webfetch: true
 websearch: true
@@ -77,18 +78,6 @@ If research uncovered ambiguities the architect should resolve before planning, 
 
 Do NOT include implementation suggestions. Your role is research and mapping only.
 
-Before returning the report, call the `time` MCP (`get_current_time`) for a real UTC timestamp, then append one line to `.ai/activity.log` (the runner guarantees the file exists):
-`[<UTC from time MCP>] DELEGATION_DONE task=architect agent=librarian summary="<one-line summary of key findings>"`
-
-If the append fails, write to `.ai/issues.md` instead:
-```
-
-## Activity Log Write Failure
-
-- Timestamp: <UTC from time MCP>
-- Event: DELEGATION_DONE task=architect agent=librarian
-- Class: auto-fixable
-
-```
+Delegation visibility is owned by the parent Architect agent. Do NOT write to `.ai/activity.log`, `.ai/issues.md`, or any other workflow artifact. Return only the structured research report.
 
 ```

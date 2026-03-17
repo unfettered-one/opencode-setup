@@ -10,6 +10,7 @@ tools:
   patch: true
   skill: true
   srclight: true
+   time: true
   question: false
 ---
 
@@ -72,20 +73,7 @@ If you discover the task requires changes outside scope, STOP and report back to
 
 After finishing, return a structured report to the Developer.
 
-Before outputting the report:
-
-1. Call the `time` MCP (`get_current_time`) to get the real UTC timestamp. Never write a timestamp from memory.
-2. Append one line to `.ai/activity.log` using that timestamp (the runner guarantees the file exists):
-   - On success: `[<UTC from time MCP>] DELEGATION_DONE task=<T-xxx> agent=coder summary="<one-line summary>"`
-   - On blocked: `[<UTC from time MCP>] DELEGATION_BLOCKED task=<T-xxx> agent=coder reason="<blocker>"`
-3. If the append fails, write to `.ai/issues.md` instead:
-   ```
-   ## Activity Log Write Failure
-   - Timestamp: <UTC from time MCP>
-   - Event: <the event line that failed to write>
-   - Class: auto-fixable
-   ```
-   Never silently drop the event.
+Delegation visibility is owned by the parent Developer agent. Do NOT append to `.ai/activity.log` or `.ai/issues.md` yourself. Return the completion report and delegated run record so the Developer can emit the canonical telemetry and persist workflow state.
 
 Then return:
 

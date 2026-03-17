@@ -20,6 +20,7 @@ tools:
   postman: true
   playwright: true
   sequentialthinking: true
+  time: true
 permission:
   skill:
     "tester-*": "allow"
@@ -75,7 +76,7 @@ Act as the **QA Lead** and delegate where needed:
 
 Independent specialist checks may run in parallel when OpenCode supports background subagent execution.
 
-**Delegation visibility**: Before each specialist delegation, call the `time` MCP (`get_current_time`) for a real UTC timestamp, then emit to stdout and append to `.ai/activity.log` (the runner guarantees the file exists):
+**Delegation visibility**: Tester owns the canonical telemetry for specialist work. Before each specialist delegation, call the `time` MCP (`get_current_time`) for a real UTC timestamp, then emit to stdout and append to `.ai/activity.log` (the runner guarantees this file exists):
 
 ```
 [<UTC from time MCP>] DELEGATION_START task=tester agent=<securityauditor|performancetester> purpose="<what is being checked>"
@@ -93,7 +94,7 @@ or if blocked:
 [<UTC from time MCP>] DELEGATION_BLOCKED task=tester agent=<name> reason="<why blocked>"
 ```
 
-If any append fails, write to `.ai/issues.md` with class `auto-fixable`. Never silently drop a delegation event.
+If any append fails, write to `.ai/issues.md` with class `auto-fixable`. Never silently drop a delegation event. Specialists do not own canonical activity-log writes.
 
 ---
 

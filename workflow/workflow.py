@@ -190,6 +190,7 @@ INDEX_FILE = Path(".srclight") / "index.db"
 
 SUMMARY_FILE = AI_DIR / "summary.md"
 VALID_VERDICTS = {"PROCEED", "RETRY_SAME", "RETRY_FRESH", "ESCALATE", "STOP"}
+VALID_TASK_COMPLEXITIES = {"low", "medium", "high"}
 
 # Operating mode: standard | high-accuracy | hands-off
 # Set via WORKFLOW_MODE environment variable; defaults to standard.
@@ -206,6 +207,13 @@ BLOCKER_CLASSES = ("auto-fixable", "needs-replan",
 
 # Track subprocesses
 SRCLIGHT_PROCESS = None
+
+JSON_DEFAULTS_BY_PATH = {
+    STATUS_FILE: DEFAULT_STATUS,
+    PLAN_FILE: DEFAULT_PLAN,
+    DEFECTS_FILE: DEFAULT_DEFECTS,
+    RESUME_FILE: DEFAULT_RESUME,
+}
 
 # =====================================================
 # CLEANUP
@@ -289,6 +297,20 @@ def ensure_ai_structure():
     if not ACTIVITY_LOG.exists():
         print("Creating activity.log")
         ACTIVITY_LOG.write_text("", encoding="utf-8")
+
+
+def append_activity_log(event: str, **fields: str):
+    """Append a single structured line to .ai/activity.log.
+    This file is runner-owned and should remain append-only.
+    """
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    parts = [f"[{timestamp}]", event]
+    for key, value in fields.items():
+        if value:
+            sanitized = str(value).replace("\n", " ").strip()
+            parts.append(f"{key}={sanitized}")
+    with open(ACTIVITY_LOG, "a", encoding="utf-8") as f:
+        f.write(" ".join(parts) + "\n")
 
 
 def ensure_code_index():
@@ -383,8 +405,30 @@ def prompt_for_task_if_empty():
 
 def read_json(path: Path) -> Any:
     try:
+        if not path.exists():
+            raise RuntimeError(f"Missing JSON artifact: {path}")
+
+        raw = path.read_text(encoding="utf-8")
+        if raw.strip() == "":
+            default_value = JSON_DEFAULTS_BY_PATH.get(path)
+            if default_value is None:
+                raise RuntimeError(f"Failed to read {path}: file is empty")
+
+            recovered = json.loads(json.dumps(default_value))
+            write_json(path, recovered)
+            append_activity_log(
+                "JSON_RECOVERED",
+                file=str(path),
+                reason="blank-file",
+            )
+            return recovered
+
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
+    except RuntimeError:
+        raise
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Failed to read {path}: {e}")
     except Exception as e:
         raise RuntimeError(f"Failed to read {path}: {e}")
 
@@ -460,6 +504,104 @@ def validate_resume_structure(data: Dict[str, Any]):
     normalized_decision = dict(DEFAULT_RESUME["conductor_decision"])
     normalized_decision.update(decision)
     data["conductor_decision"] = normalized_decision
+
+
+def validate_plan_structure(data: Dict[str, Any]):
+    if not isinstance(data, dict):
+        raise RuntimeError("plan.json must be a JSON object")
+
+    for key, value in DEFAULT_PLAN.items():
+        if key not in data:
+            data[key] = [] if isinstance(value, list) else value
+
+    if not isinstance(data["task_breakdown"], list):
+        raise RuntimeError("plan.json task_breakdown must be a list")
+    if not isinstance(data["dependencies"], list):
+        raise RuntimeError("plan.json dependencies must be a list")
+    if not isinstance(data["risks"], list):
+        raise RuntimeError("plan.json risks must be a list")
+    if not isinstance(data["security_assumptions"], list):
+        raise RuntimeError("plan.json security_assumptions must be a list")
+
+    seen_ids = set()
+    normalized_tasks: List[Dict[str, Any]] = []
+    required_task_keys = {
+        "id",
+        "title",
+        "description",
+        "affected_files",
+        "depends_on",
+        "acceptance_criteria",
+        "estimated_complexity",
+    }
+
+    for index, task in enumerate(data["task_breakdown"]):
+        label = f"plan.json task_breakdown[{index}]"
+        if not isinstance(task, dict):
+            raise RuntimeError(f"{label} must be an object")
+
+        missing_keys = required_task_keys - set(task.keys())
+        if missing_keys:
+            missing_list = ", ".join(sorted(missing_keys))
+            raise RuntimeError(
+                f"{label} missing required keys: {missing_list}")
+
+        task_id = task.get("id", "")
+        title = task.get("title", "")
+        description = task.get("description", "")
+        affected_files = task.get("affected_files")
+        depends_on = task.get("depends_on")
+        acceptance_criteria = task.get("acceptance_criteria")
+        complexity = task.get("estimated_complexity", "")
+
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise RuntimeError(f"{label} id must be a non-empty string")
+        if task_id in seen_ids:
+            raise RuntimeError(
+                f"plan.json task ids must be unique; duplicate id '{task_id}'")
+        seen_ids.add(task_id)
+
+        if not isinstance(title, str) or not title.strip():
+            raise RuntimeError(f"{label} title must be a non-empty string")
+        if not isinstance(description, str) or not description.strip():
+            raise RuntimeError(
+                f"{label} description must be a non-empty string")
+        if not isinstance(affected_files, list) or not all(isinstance(item, str) and item.strip() for item in affected_files):
+            raise RuntimeError(
+                f"{label} affected_files must be a list of non-empty strings")
+        if not isinstance(depends_on, list) or not all(isinstance(item, str) and item.strip() for item in depends_on):
+            raise RuntimeError(
+                f"{label} depends_on must be a list of non-empty strings")
+        if not isinstance(acceptance_criteria, list) or not acceptance_criteria:
+            raise RuntimeError(
+                f"{label} acceptance_criteria must be a non-empty list")
+        if not all(isinstance(item, str) and item.strip() for item in acceptance_criteria):
+            raise RuntimeError(
+                f"{label} acceptance_criteria must contain only non-empty strings")
+        if complexity not in VALID_TASK_COMPLEXITIES:
+            allowed = ", ".join(sorted(VALID_TASK_COMPLEXITIES))
+            raise RuntimeError(
+                f"{label} estimated_complexity must be one of: {allowed}")
+
+        normalized_tasks.append(task)
+
+    task_ids = {task["id"] for task in normalized_tasks}
+    for task in normalized_tasks:
+        unknown_dependencies = [
+            item for item in task["depends_on"] if item not in task_ids]
+        if unknown_dependencies:
+            unknown_list = ", ".join(unknown_dependencies)
+            raise RuntimeError(
+                f"plan.json task '{task['id']}' depends_on unknown task ids: {unknown_list}"
+            )
+
+    data["task_breakdown"] = normalized_tasks
+
+
+def read_plan() -> Dict[str, Any]:
+    data = read_json(PLAN_FILE)
+    validate_plan_structure(data)
+    return data
 
 
 def get_latest_delegated_run(resume: Dict[str, Any], phase: str) -> Optional[Dict[str, Any]]:
@@ -595,7 +737,7 @@ def validate_phase_preconditions(phase: str):
     Prevents phases from running in an uninformed state.
     """
     if phase == "developer":
-        plan = read_json(PLAN_FILE)
+        plan = read_plan()
         if not plan.get("task_breakdown"):
             raise RuntimeError(
                 "PHASE GATE VIOLATION: plan.json has no task_breakdown. "
@@ -608,6 +750,9 @@ def validate_phase_preconditions(phase: str):
                     "PHASE GATE VIOLATION (high-accuracy mode): '## Pre-Plan Gap Analysis' not found in "
                     "context.md. Architect gap analysis is required before Developer starts."
                 )
+
+    if phase in {"tester", "reviewer"}:
+        read_plan()
 
     required_section = PHASE_REQUIRED_CONTEXT_SECTIONS.get(phase)
     if required_section:
@@ -672,6 +817,7 @@ def run_conductor(phase: str):
     Fail-open: if conductor crashes or exits non-zero, log a warning and continue.
     """
     print(f"\n--- Conductor pre-flight for phase: {phase} ---")
+    append_activity_log("CONDUCTOR_START", phase=phase, mode=WORKFLOW_MODE)
     blocker_taxonomy = ", ".join(BLOCKER_CLASSES)
     message = (
         f"[WORKFLOW_MODE={WORKFLOW_MODE}] "
@@ -687,8 +833,17 @@ def run_conductor(phase: str):
         shell=False
     )
     if result.returncode != 0:
+        append_activity_log(
+            "CONDUCTOR_END",
+            phase=phase,
+            status="failed",
+            code=str(result.returncode),
+        )
         print(
             f"WARNING: Conductor exited with code {result.returncode}. Falling back to PROCEED.")
+        return
+
+    append_activity_log("CONDUCTOR_END", phase=phase, status="completed")
 
 
 def read_conductor_decision() -> Dict[str, Any]:
@@ -803,6 +958,7 @@ def apply_conductor_decision(phase: str, decision: Dict[str, Any]) -> Dict[str, 
 
 def run_phase(phase: str):
     print(f"\n=== Running phase: {phase.upper()} ===")
+    append_activity_log("PHASE_START", phase=phase, mode=WORKFLOW_MODE)
 
     # Read intent from context.md so the agent message is pre-scoped
     intent = "unknown"
@@ -828,46 +984,84 @@ def run_phase(phase: str):
     )
 
     timeout_secs = PHASE_TIMEOUTS.get(phase, 1800)
-    try:
-        result = subprocess.run(
-            [
-                OPENCODE_PATH,
-                "run",
-                "--agent",
-                phase,
-                message
-            ],
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-            shell=False,
-            timeout=timeout_secs
-        )
-    except subprocess.TimeoutExpired:
-        timeout_msg = (
-            f"Phase {phase} exceeded {timeout_secs}s timeout and was killed. "
-            f"This is typically caused by a subagent stalling or waiting for input. "
-            f"Check .ai/issues.md for blocker details."
-        )
-        print(f"\n[TIMEOUT] {timeout_msg}", file=sys.stderr)
-        # Append a blocker entry so the next run can diagnose the cause
-        if ISSUES_FILE.exists():
-            existing = ISSUES_FILE.read_text(encoding="utf-8")
-        else:
-            existing = ""
-        ISSUES_FILE.write_text(
-            existing +
-            f"\n## Phase Timeout\n"
-            f"- Timestamp: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
-            f"- Phase: {phase}\n"
-            f"- Limit: {timeout_secs}s\n"
-            f"- Action: Runner killed the process. Re-run after resolving the stall.\n",
-            encoding="utf-8"
-        )
-        raise RuntimeError(timeout_msg)
+    heartbeat_interval = 30
+    process = subprocess.Popen(
+        [
+            OPENCODE_PATH,
+            "run",
+            "--agent",
+            phase,
+            message
+        ],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        shell=False
+    )
 
-    if result.returncode != 0:
+    started_at = time.monotonic()
+    next_heartbeat = started_at + heartbeat_interval
+    while True:
+        result_code = process.poll()
+        now = time.monotonic()
+
+        if result_code is not None:
+            break
+
+        if now >= next_heartbeat:
+            elapsed = int(now - started_at)
+            append_activity_log(
+                "PHASE_HEARTBEAT",
+                phase=phase,
+                elapsed_seconds=str(elapsed),
+                mode=WORKFLOW_MODE,
+            )
+            next_heartbeat += heartbeat_interval
+
+        if now - started_at > timeout_secs:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+            timeout_msg = (
+                f"Phase {phase} exceeded {timeout_secs}s timeout and was killed. "
+                f"This is typically caused by a subagent stalling or waiting for input. "
+                f"Check .ai/issues.md for blocker details."
+            )
+            print(f"\n[TIMEOUT] {timeout_msg}", file=sys.stderr)
+            append_activity_log(
+                "PHASE_TIMEOUT",
+                phase=phase,
+                limit_seconds=str(timeout_secs),
+            )
+            # Append a blocker entry so the next run can diagnose the cause
+            if ISSUES_FILE.exists():
+                existing = ISSUES_FILE.read_text(encoding="utf-8")
+            else:
+                existing = ""
+            ISSUES_FILE.write_text(
+                existing +
+                f"\n## Phase Timeout\n"
+                f"- Timestamp: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
+                f"- Phase: {phase}\n"
+                f"- Limit: {timeout_secs}s\n"
+                f"- Action: Runner killed the process. Re-run after resolving the stall.\n",
+                encoding="utf-8"
+            )
+            raise RuntimeError(timeout_msg)
+
+        time.sleep(1)
+
+    append_activity_log(
+        "PHASE_END",
+        phase=phase,
+        status="completed" if result_code == 0 else "failed",
+        code=str(result_code),
+    )
+
+    if result_code != 0:
         raise RuntimeError(
-            f"Phase {phase} exited with code {result.returncode}")
+            f"Phase {phase} exited with code {result_code}")
 
 
 # =====================================================
@@ -902,6 +1096,7 @@ def validate_transition(old_status: Dict[str, Any], new_status: Dict[str, Any]):
 
 def main():
     print("=== AI WORKFLOW ENGINE STARTED ===")
+    append_activity_log("ENGINE_START", mode=WORKFLOW_MODE)
 
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
@@ -951,6 +1146,13 @@ def main():
             reason = applied_decision["reason"]
             phase_to_run = applied_decision["phase_to_run"]
             print(f"Conductor verdict: {verdict} — {reason}")
+            append_activity_log(
+                "CONDUCTOR_DECISION",
+                phase=phase,
+                verdict=verdict,
+                target_phase=phase_to_run,
+                reason=reason,
+            )
 
             write_return_summary(phase, verdict, reason, iterations)
 
@@ -975,6 +1177,7 @@ def main():
             "Max iterations reached. Possible infinite loop detected.")
 
     finally:
+        append_activity_log("ENGINE_STOP")
         write_return_summary(
             read_status().get("phase", "unknown"),
             "STOP",
