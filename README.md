@@ -1,0 +1,1 @@
+Place this repository’s configuration files and folders inside ~/.config/opencode/.
