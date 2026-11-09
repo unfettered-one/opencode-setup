@@ -1,0 +1,32 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    { "action": "skill", "resource": "linkedin-handling", "effect": "deny" },
+    { "action": "skill", "resource": "job-apply", "effect": "deny" }
+  ],
+  "mcp": {
+    
+    "servers": {
+      "time": {
+        "type": "local",
+        "command": ["/opt/homebrew/bin/uvx", "mcp-server-time", "--local-timezone=Asia/Kolkata"]
+      },
+      "drawio": {
+      "type": "local",
+      "command": ["drawio-mcp"]
+    },
+    "browse": {
+      "type": "local",
+      "command": [
+        "/Users/yash/.local/bin/browse",
+        "mcp"
+      ],
+      "environment": {
+        "OPENCODE_BROWSER_RUNTIME": "auto-update"
+      }
+    }
+    }
+  },
+  "plugins": [],
+  "subagent_depth": "3"
+}
