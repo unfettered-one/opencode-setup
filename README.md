@@ -1,1 +1,1 @@
-Place this repository’s configuration files and folders inside ~/.config/opencode/.
+Place this repository’s configuration files and folders inside ~/.config/opencode/. Copy the `extensions/` folder alongside `cli.json`: its `./extensions/vscode-file-links` plugin path resolves relative to the config file’s directory. This repository’s `cli.json` is intended for that global location, not project-local CLI configuration.

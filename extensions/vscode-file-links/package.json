@@ -1,0 +1,12 @@
+{
+  "name": "local-vscode-file-links",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tui": "./tui.ts"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}
