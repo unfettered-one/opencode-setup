@@ -28,5 +28,7 @@
     }
   },
   "plugins": [],
-  "subagent_depth": "3"
+  "experimental": {
+    "subagent_depth": 3
+  }
 }
