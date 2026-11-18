@@ -29,7 +29,6 @@
 - Provide Rivet and Caliper all context that can materially affect architecture, contracts, integration boundaries, compatibility decisions, and acceptance criteria. Include relevant existing extension points and upstream/downstream contracts. Exclude unrelated detail.
 - Always use `new` subagent session for the task , not continue the same session used already.
 - don't tell `Caliper` how to review, just tell it the changes made, and let it do its job , don't steer it to expected verdict.
-- 
 - If `webfetch` or `websearch` tools are not enough, Always use `Browser` for any browser-automation or browser-validation or any task related to running browser. You can deploy them in parallel if they are independent tasks and don't interfere with each other. (making sure you provide clear context to browser agent)
 
 ## Behaviour
