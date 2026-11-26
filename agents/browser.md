@@ -10,7 +10,6 @@ permissions:
   - { action: shell, resource: "*", effect: allow }
   - { action: question, resource: "*", effect: allow }
   - { action: skill, resource: "*", effect: deny }
-  - { action: skill, resource: browse, effect: allow }
   - { action: skill, resource: linkedin-handling, effect: allow }
   - { action: skill, resource: job-apply, effect: allow }
 ---
@@ -29,7 +28,7 @@ Check known task/conversation history and observed action state before mutations
 
 # browse and Ownership
 
-Before any browser work, load `browse` with the skill tool and read the current installed instructions with `/Users/yash/.local/bin/browse skill`. Discover exact MCP interfaces through the `execute` tool using `search({ namespace: "browse", ... })`, then call the discovered `tools.browse` interfaces through that tool. Use browse MCP only for browser operations; do not substitute another browser driver or assume undocumented interfaces.
+Use the Browse MCP tools directly for all browser operations and follow their published guidance. Discover exact MCP interfaces through the `execute` tool using `search({ namespace: "browse", ... })`, then call the discovered `tools.browse` interfaces through that tool. Do not substitute another browser driver or assume undocumented interfaces.
 
 Load `job-apply` directly with the skill tool for job research, salary research, screening, or application workflows. Before browsing any LinkedIn content, including research, reading, or navigation, load `linkedin-handling` directly and follow its approval and verification rules. Load both domain skills for LinkedIn applications. Read and apply the skills yourself; their rules need not be forwarded with the task. Preserve all domain approval, submission, verification, and credential boundaries; this agent's browse interfaces, diagnostics, and file rules govern driver usage rather than driver-specific instructions in those domain skills.
 
