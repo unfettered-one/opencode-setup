@@ -14,17 +14,29 @@
       "drawio": {
       "type": "local",
       "command": ["drawio-mcp"]
-    },
-    "browse": {
-      "type": "local",
-      "command": [
-        "/Users/yash/.local/bin/browse",
-        "mcp"
-      ],
-      "environment": {
-        "OPENCODE_BROWSER_RUNTIME": "auto-update"
+      },
+      "browse": {
+        "type": "local",
+        "command": [
+          "/Users/yash/.local/bin/browse",
+          "mcp"
+        ],
+        "environment": {
+          "OPENCODE_BROWSER_RUNTIME": "auto-update"
+        }
+      },
+      "gmail": {
+        "type": "remote",
+        "url": "https://gmailmcp.googleapis.com/mcp/v1",
+        "oauth": {
+          "client_id": "PASTE_CLIENT_ID_HERE",
+          "client_secret": "{file:~/.secrets/gmail-mcp-client-secret}",
+          "scope": "https://www.googleapis.com/auth/gmail.modify",
+          "callback_port": 19876,
+          "redirect_uri": "http://127.0.0.1:19876/callback",
+          "auth_server_metadata_url": "https://accounts.google.com/.well-known/openid-configuration"
+        }
       }
-    }
     }
   },
   "plugins": [],
